@@ -1,8 +1,9 @@
-const _qrcode = require('qrcode');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const wweb = require('whatsapp-web.js');
 const Discord = require('discord.js');
+require("dotenv");
+
 const config = require('./config.json');
 let channels = require('./channels.json');
 let messages = require('./messages.json');
@@ -528,4 +529,4 @@ dClient.on('error', error => {
     console.log(`Houve um erro, tudo foi salvo.\nErro: ${error.name}\n\n${error.message}`)
 })
 
-dClient.login(config.token)
+dClient.login(process.env.TOKEN)
