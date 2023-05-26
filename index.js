@@ -1,3 +1,4 @@
+const _qrcode = require('qrcode');
 const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const wweb = require('whatsapp-web.js');
@@ -331,7 +332,16 @@ dClient.on('messageCreate', async (message) => {
 
         wClient.initialize();
         wClient.on('qr', (qr) => {
-            qrcode.generate(qr, { small: true })
+
+            qrcode.generate(qr, { small: true },function(str){
+
+                const embed = new Discord.EmbedBuilder()
+                .setDescription("A autenticacao falhou, escaneie este código!\n```" + str + "```")
+                .setColor(config.embedColor)
+
+                message.channel.send({ embeds: [embed] })
+
+            })
         })
 
         let pvParent = message.guild.channels.cache.get(msgContentArr[1])
@@ -425,7 +435,7 @@ dClient.on('interactionCreate',async(interaction) => {
                         embed.setDescription(`Você respondeu a ${sentContact.name} em ${chat.name}\n\n**Mensagem:**\n>${ansMsg.body}\n\n**Resposta:**\n>${ans}`)
 
                         msg.edit({ embeds: [embed] }).then(m => {
-                            m.delete().catch(e => {return})
+                            m.delete().catch(e => {})
                         })
                     })
                 })
@@ -459,7 +469,7 @@ dClient.on('interactionCreate',async(interaction) => {
                         embed.setDescription(`Você respondeu a ${contact.name}\n\n**Mensagem:**\n>${ansMsg.body}\n\n**Resposta:**\n> ${ans}`)
 
                         msg.edit({ embeds: [embed] }).then(m => {
-                            m.delete().catch(e => {return})
+                            m.delete().catch(e => {})
                         })
                     })
                 })
