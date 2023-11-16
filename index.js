@@ -2,13 +2,16 @@ const qrcode = require('qrcode-terminal');
 const fs = require('fs');
 const wweb = require('whatsapp-web.js');
 const Discord = require('discord.js');
-require("dotenv");
+require("dotenv").config();
 
 const config = require('./config.json');
 let channels = require('./channels.json');
 let messages = require('./messages.json');
 
 let discordConfig = {};
+let answeringMessage = false
+const defaultProfilePicture = "https://media.discordapp.net/attachments/825417861311758336/1174465066217775124/profile.png?ex=6567b0d4&is=65553bd4&hm=06624d83e7877671737ef262cc34a28d0031d1f56a5855be9d3d4e232aa8c3c8&="
+let clientProfilePicture;
 
 const dClient = new Discord.Client({ 
     intents: [
@@ -40,18 +43,25 @@ wClient.on('message', async(message) => {
 
     let contact = await message.getContact()
     let chat = await message.getChat()
+    
+    let contactPicture = await wClient.getProfilePicUrl(contact.id)
 
     if(chat.isMuted || message.isStatus) return
 
     if(chat.isGroup){
 
-        let groupChannel = channels.groups[chat.id._serialized]
+        let groupChannelId = channels.groups[chat.id._serialized]
+        let guildChannels = await discordConfig.guild.channels.fetch()
+
+        let groupChannel = guildChannels.find(i => i.id == groupChannelId)
+
         if(groupChannel){
 
             const embed = new Discord.EmbedBuilder()
-            .setTitle(contact.name ? contact.name : contact.pushname)
-            .setDescription(message.body ? message.body : (message.caption ? message.caption : "MENSAGEM SEM TEXTO"))
+            .setTitle(contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number))
+            .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
             .setColor(config.embedColor)
+            .setThumbnail(contactPicture ? contactPicture : defaultProfilePicture)
 
             const btn = new Discord.ButtonBuilder()
             .setCustomId(`ans`)
@@ -61,30 +71,27 @@ wClient.on('message', async(message) => {
 
             const row = new Discord.ActionRowBuilder()
             .setComponents(btn)
-
             
             groupChannel.send({ embeds: [embed], components: [row] }).then(msg => {
-                let msgData = {
-                    sender: contact,
+                messages[msg.id] = {
                     chat: chat,
                     id: message.id._serialized
                 }
-
-                messages[msg.id] = msgData
             })
         }else{
 
             discordConfig.guild.channels.create({
-                name: `${Object.keys(channels.groups).length + 1}`,
+                name: `${chat.name}`,
                 type: Discord.ChannelType.GuildText,
                 parent: discordConfig.groupParent,
                 description: chat.name
             }).then(c => {
 
                 const embed = new Discord.EmbedBuilder()
-                .setTitle(contact.name ? contact.name : contact.pushname)
-                .setDescription(message.body ? message.body : (message.caption ? message.caption : "MENSAGEM SEM TEXTO"))
+                .setTitle(contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number))
+                .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
                 .setColor(config.embedColor)
+                .setThumbnail(contactPicture ? contactPicture : defaultProfilePicture)
 
                 const btn = new Discord.ButtonBuilder()
                 .setCustomId(`ans`)
@@ -97,27 +104,31 @@ wClient.on('message', async(message) => {
 
                 c.send({ embeds: [embed], components: [row] }).then(msg => {
                     messages[msg.id] = {
-                        sender: contact,
                         chat: chat,
                         id: message.id._serialized
                     }
                 })
 
-                channels.groups[chat.id._serialized] = c
+                channels.groups[chat.id._serialized] = c.id
             })
 
         }
-        // chat.id.user
 
     }else{
 
-        let cttChannel = channels.pv[message.from]
+        console.log(message)
+        
+        let cttChannelId = channels.pv[message.from]
+        let guildChannels = await discordConfig.guild.channels.fetch()
+        let cttChannel = guildChannels.find(i => i.id == cttChannelId)
+
         if(cttChannel){
 
             const embed = new Discord.EmbedBuilder()
-            .setTitle(contact.name ? contact.name : contact.pushname)
-            .setDescription(message.body ? message.body : (message.caption ? message.caption : "MENSAGEM SEM TEXTO"))
+            .setTitle(contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number))
+            .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
             .setColor(config.embedColor)
+            .setThumbnail(contactPicture ? contactPicture : "")
 
             const btn = new Discord.ButtonBuilder()
             .setCustomId(`ans`)
@@ -128,10 +139,12 @@ wClient.on('message', async(message) => {
             const row = new Discord.ActionRowBuilder()
             .setComponents(btn)
 
-            cttChannel.send({ embeds: [embed], components: [row] }).then(msg => {
+            await cttChannel.send({ embeds: [embed], components: [row] }).then(msg => {
                 messages[msg.id] = {
-                    sender: contact,
                     chat: chat,
+                    message: message.body ? message.body : "*Mensagem sem texto*",
+                    sender: message.from,
+                    contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
                     id: message.id._serialized
                 }
             })
@@ -139,7 +152,7 @@ wClient.on('message', async(message) => {
         }else{
 
             discordConfig.guild.channels.create({
-                name: `${Object.keys(channels.pv).length + 1}`,
+                name: `${chat.name}`,
                 type: Discord.ChannelType.GuildText,
                 parent: discordConfig.pvParent,
                 description: contact.name ? contact.name : `${contact.number} - ${contact.pushname}`
@@ -147,8 +160,9 @@ wClient.on('message', async(message) => {
 
                 const embed = new Discord.EmbedBuilder()
                 .setTitle(contact.name ? contact.name : contact.pushname)
-                .setDescription(message.body ? message.body : (message.caption ? message.caption : "MENSAGEM SEM TEXTO"))
+                .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
                 .setColor(config.embedColor)
+                .setThumbnail(contactPicture ? contactPicture : defaultProfilePicture)
 
                 const btn = new Discord.ButtonBuilder()
                 .setCustomId(`ans`)
@@ -160,16 +174,16 @@ wClient.on('message', async(message) => {
                 .setComponents(btn)
 
                 c.send({ embeds: [embed], components: [row] }).then(msg => {
-                    let msgData = {
-                        sender: contact,
+                    messages[msg.id] = {
                         chat: chat,
+                        message: message.body ? message.body : "*Mensagem sem texto*",
+                        sender: message.from,
+                        contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
                         id: message.id._serialized
                     }
-    
-                    messages[msg.id] = msgData
                 })
 
-                channels.pv[message.from] = c
+                channels.pv[message.from] = c.id
             })
         }
     }
@@ -303,7 +317,7 @@ dClient.on('ready', () => {
     console.log("Bot Discord Online!")
 })
 
-wClient.on('ready',() => {
+wClient.on('ready',async () => {
 
     const embed = new Discord.EmbedBuilder()
     .setTitle('Bot Online!')
@@ -313,6 +327,14 @@ wClient.on('ready',() => {
     discordConfig.channel.send({ embeds: [embed] })
 
     console.log('Bot Zap Online!')
+
+    let contacts = await wClient.getContacts()
+    contacts.forEach(async i => {
+        if(i.isMe){
+            let profilePic = await i.getProfilePicUrl()
+            clientProfilePicture = profilePic
+        }
+    })
 })
 
 dClient.on('messageCreate', async (message) => {
@@ -321,7 +343,7 @@ dClient.on('messageCreate', async (message) => {
 
     if(message.content.startsWith('!set')){
 
-        message.channel.bulkDelete(3)
+        await message.channel.bulkDelete(3).catch(e => {})
         let msgContentArr = message.content.split(' ')
 
         if(msgContentArr.length < 3) return message.channel.send('tu q desenvolveu o bot e nao sabe usar?')
@@ -337,12 +359,17 @@ dClient.on('messageCreate', async (message) => {
             qrcode.generate(qr, { small: true },function(str){
 
                 const embed = new Discord.EmbedBuilder()
-                .setDescription("A autenticacao falhou, escaneie este código!\n```" + str + "```")
+                .setTitle("A autenticacao falhou, escaneie este código!")
+                .setDescription("```" + str + "```")
                 .setColor(config.embedColor)
 
                 message.channel.send({ embeds: [embed] })
 
             })
+        })
+
+        wClient.on('authenticated', function(){
+            console.log("Autenticado!")
         })
 
         let pvParent = message.guild.channels.cache.get(msgContentArr[1])
@@ -353,7 +380,7 @@ dClient.on('messageCreate', async (message) => {
         .setDescription(`> Categoria do PV:\n${pvParent.name}\n\n> Categoria de Grupos:\n${groupParent.name}\n\n*Iniciando bot do Whatsapp*\n**Comando:** \`${message.content}\``)
         .setColor(config.embedColor)
 
-        message.channel.send({ embeds: [embed] })
+        await message.channel.send({ embeds: [embed] })
 
         console.log('tudo certo! iniciando bot!')
 
@@ -381,14 +408,34 @@ dClient.on('messageCreate', async (message) => {
 
         message.delete().catch(err => {})
         return message.channel.send({ embeds: [embed] })
+    }else if(message.content.startsWith("!clear")){
+
+        console.log("limpando")
+        let parent = message.channel.parent
+        let guildChannels = await message.channel.guild.channels.fetch()
+        guildChannels.forEach(i => {
+            if(i.parentId == parent.id){
+                i.delete()
+            }
+        })
     }
+
+    if(answeringMessage) return
+
+    const embed = new Discord.EmbedBuilder()
+    .setTitle(`${wClient.info.pushname} (Você)`)
+    .setDescription(message.content)
+    .setColor(config.embedColor)
+    .setThumbnail(clientProfilePicture ? clientProfilePicture : defaultProfilePicture)
+
+    await message.delete()
+    await message.channel.send({ embeds: [embed] })
 
     let channel = await getPVChannel(message.channel.id)
     if(!channel) {
         let channel = await getGroupChannel(message.channel.id)
         if(channel){
-
-            wClient.sendMessage(channel, message.contact)
+            wClient.sendMessage(channel, message.content)
         }
     }else{
         if(message.content.startsWith('!add')) {
@@ -403,11 +450,15 @@ dClient.on('interactionCreate',async(interaction) => {
     if(interaction.customId == 'ans'){
 
         let msgData = messages[interaction.message.id]
+        console.log(msgData)
 
-        let chatId = getPVChannel(msgData.chat.id._serialized)
+        let chatId = await getPVChannelByChat(msgData.chat.id._serialized)
         if(!chatId){
-            chatId = getGroupChannel(msgData.chat.id._serialized)
-            if(!chatId) return
+            chatId = await getGroupChannel(msgData.chat.id._serialized)
+            if(!chatId) {
+                console.log("Não encontrado!")
+                return
+            }
 
             let chatMessages = await msgData.chat.fetchMessages()
             let ansMsg = chatMessages.find(i => i.id == msgData.id)
@@ -443,35 +494,41 @@ dClient.on('interactionCreate',async(interaction) => {
             }
         }else{
 
-            let chatMessages = await msgData.chat.fetchMessages()
-            let ansMsg = chatMessages.find(i => i.id == msgData.id)
+            // quotedMessageId: this.id._serialized
 
-            if(ansMsg){
+            if(msgData){
 
-                let sentContact = ansMsg.getContact()
+                answeringMessage = true
+
+                // let sentContact = ansMsg.getContact()
 
                 const embed = new Discord.EmbedBuilder()
-                .setTitle(`Respondendo a ${sentContact.name}`)
-                .setDescription(`> ${ansMsg.body}`)
+                .setTitle(`Respondendo a ${msgData.contact}`)
+                .setDescription(`> ${msgData.message}`)
                 .setColor(config.embedColor)
 
                 interaction.channel.send({ embeds: [embed] }).then(msg => {
                     const msgFilter = i => i.author.id == interaction.user.id && i.content
-                    let collector = interaction.channel.createMessageCollector({ msgFilter, time: 60000 })
-                    collector.on('collect', c => {
+                    let collector = interaction.channel.createMessageCollector({ msgFilter, max: 1 })
+                    collector.on('collect', async c => {
                         
                         if(!c.content) return
 
                         let ans = c.content
 
-                        ansMsg.reply(ans)
+                        const embed = new Discord.EmbedBuilder()
+                        .setTitle(`${wClient.info.pushname} (Você)`)
+                        .setDescription(`> **${msgData.contact}**\n> ${msgData.message}\n\n${ans}`)
+                        .setColor(config.embedColor)
+                        .setThumbnail(clientProfilePicture ? clientProfilePicture : defaultProfilePicture)
 
-                        embed.setTitle(`Resposta enviada!`)
-                        embed.setDescription(`Você respondeu a ${contact.name}\n\n**Mensagem:**\n>${ansMsg.body}\n\n**Resposta:**\n> ${ans}`)
+                        await c.delete()
+                        await interaction.channel.send({ embeds: [embed] })
 
-                        msg.edit({ embeds: [embed] }).then(m => {
-                            m.delete().catch(e => {})
-                        })
+                        wClient.sendMessage(msgData.sender, ans, { quotedMessageId: msgData.id })
+                        answeringMessage = false
+
+                        m.delete()
                     })
                 })
 
@@ -491,21 +548,30 @@ setInterval(() => {
         JSON.stringify(messages),
         function(err) {if(err) console.log(err)}
     )
-    console.log('salvou aqui')
-},300000)
+},5000)
 
 getPVChannel = (channelId) => {
     if(channels?.pv?.length == 0) return
     for(let [k,v] of Object.entries(channels.pv)){
-        if(v.id == channelId) return k
+        if(v == channelId) return k
     }
 }
 
 getGroupChannel = (channelId) => {
     if(channels?.pv?.length == 0) return
     for(let [k,v] of Object.entries(channels.groups)){
-        if(v.id == channelId) return k
+        if(v == channelId) return k
     }
+}
+
+getPVChannelByChat = (chatId) => {
+    if(channels?.pv?.length == 0) return
+    return channels.pv[chatId] ? channels.pv[chatId] : undefined
+}
+
+getGroupChannelByChat = (chatId) => {
+    if(channels?.pv?.length == 0) return
+    return channels.groups[chatId] ? channels.groups[chatId] : undefined
 }
 
 Object.prototype.getChatId = (channelId) => {
