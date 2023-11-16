@@ -44,7 +44,15 @@ wClient.on('message', async(message) => {
     let contact = await message.getContact()
     let chat = await message.getChat()
     
-    let contactPicture = await wClient.getProfilePicUrl(contact.id)
+    let contactPicture;
+
+    wClient.getProfilePicUrl(contact.id)
+    .then(pic => {
+        contactPicture = pic
+    })
+    .catch(() => {
+        contactPicture = defaultProfilePicture
+    })
 
     if(chat.isMuted || message.isStatus) return
 
@@ -115,8 +123,6 @@ wClient.on('message', async(message) => {
         }
 
     }else{
-
-        console.log(message)
         
         let cttChannelId = channels.pv[message.from]
         let guildChannels = await discordConfig.guild.channels.fetch()
@@ -386,31 +392,225 @@ dClient.on('messageCreate', async (message) => {
 
         return
     }else if(message.content.startsWith('!add')){
-        let msgContentArr = message.content.split(' ')
+        // let msgContentArr = message.content.split(' ')
         
-        if(msgContentArr.length < 3) return message.channel.send('tu q desenvolveu o bot e nao sabe usar?')
+        // if(msgContentArr.length < 3) return message.channel.send('!add tipo(pv/groups) numero')
 
-        let type = msgContentArr[1]
-        let id = msgContentArr[2]
+        // let type = msgContentArr[1]
+        // let id = msgContentArr[2]
+        
+        // let ctt = await wClient.getContactById(`55${id}@c.us`)
 
-        message.channel.edit({
-            name: `${Object.keys(channels[type]).length + 1}`
+        // message.channel.edit({
+        //     name: `${ctt.name}`
+        // })
+
+        // channels[type][`55${id}@c.us`] = message.channel.id
+
+        // const embed = new Discord.EmbedBuilder()
+        // .setTitle('Canal adicionado!')
+        // .setDescription(`Contato:\n> ${ctt.name}\n\nNúmero:\n> ${id}`)
+        // .setColor(config.embedColor)
+
+        // message.delete().catch(err => {})
+        // return message.channel.send({ embeds: [embed] }).catch(err => {})
+
+        let _contacts = await wClient.getContacts()
+        let contacts = []
+    
+        message.delete().catch(err => {})
+
+        let pagesAmount = 1
+        let currentPage = 1
+
+        _contacts.forEach(contact => {
+            if(contact.isUser && contact.isMyContact){
+                contacts.push(
+                    {
+                        name: contact.name,
+                        id: contact.id._serialized
+                    }
+                )
+            }
         })
 
-        channels[type][`55${id}@c.us`] = message.channel
+        function descriptionText(__contacts, currentPage){
+            let description = "> **Contatos nesta página**\n\n"
+            for(let i = (currentPage - 1) * 10; (i < (currentPage - 1) * 10 + 10) && (i < __contacts.length); i++){
+                description += `${__contacts[i].name}\n`
+            }
+            return description
+        }
 
-        let ctt = await wClient.getContactById(`55${id}@c.us`)
+        function menuOptions(contacts, currentPage){
+            let options = []
+            for(let i = (currentPage - 1) * 10; (i < (currentPage - 1) * 10 + 10) && (i < contacts.length); i++){
+                let option = {
+                    label: contacts[i].name,
+                    value: contacts[i].id
+                }
 
-        const embed = new Discord.EmbedBuilder()
-        .setTitle('Canal adicionado!')
-        .setDescription(`Contato:\n> ${ctt.name}\n\nNúmero:\n> ${id}`)
-        .setColor(config.embedColor)
+                options.push(option)
+            }
 
-        message.delete().catch(err => {})
-        return message.channel.send({ embeds: [embed] })
+            return options
+        }
+
+        if(contacts.length > 10){
+            pagesAmount = Math.ceil(contacts.length / 10)
+
+            const embed = new Discord.EmbedBuilder()
+            .setTitle("Escolha um contato")
+            .setDescription(descriptionText(contacts, currentPage))
+            .setFooter({ text: `Página ${currentPage}/${pagesAmount}` })
+            .setColor(config.embedColor)
+
+            const forwardButton = new Discord.ButtonBuilder()
+            .setCustomId("forward")
+            .setLabel("+")
+            .setStyle(Discord.ButtonStyle.Primary)
+
+            const backButton = new Discord.ButtonBuilder()
+            .setCustomId("back")
+            .setLabel("-")
+            .setStyle(Discord.ButtonStyle.Primary)
+
+            const cancelButton = new Discord.ButtonBuilder()
+            .setCustomId("cancel")
+            .setLabel("X")
+            .setStyle(Discord.ButtonStyle.Danger)
+
+            const buttonsRow = new Discord.ActionRowBuilder()
+            .setComponents(backButton, forwardButton, cancelButton)
+
+            const selectMenu = new Discord.StringSelectMenuBuilder()
+            .setCustomId("addingcontact")
+            .setPlaceholder("Selecione um contato!")
+            .addOptions(menuOptions(contacts, currentPage))
+
+            const selectMenuRow = new Discord.ActionRowBuilder()
+            .setComponents(selectMenu)
+
+            message.channel.send({embeds: [embed], components: [buttonsRow,selectMenuRow]})
+            .then(msg => {
+                let collector = msg.createMessageComponentCollector({ time: 60000 })
+                let selectedContact;
+                collector.on('collect', async c => {
+    
+                    if(c.customId == "forward" && currentPage < pagesAmount){
+                        currentPage ++;
+                        embed.setDescription(descriptionText(contacts, currentPage))
+                        embed.setFooter({ text: `Página ${currentPage}/${pagesAmount}`})
+    
+                        selectMenu.setOptions(menuOptions(contacts, currentPage))
+                        selectMenuRow.setComponents(selectMenu)
+                        msg.edit({ embeds: [embed], components: [buttonsRow, selectMenuRow]})
+                    }else if(c.customId == "back" && currentPage > 1){
+                        currentPage --;
+                        embed.setDescription(descriptionText(contacts, currentPage))
+                        embed.setFooter({ text: `Página ${currentPage}/${pagesAmount}`})
+    
+                        selectMenu.setOptions(menuOptions(contacts, currentPage))
+                        selectMenuRow.setComponents(selectMenu)
+                        msg.edit({ embeds: [embed], components: [buttonsRow, selectMenuRow]})
+                    }else if(c.customId == "addingcontact"){
+    
+                        const contact = await wClient.getContactById(c.values[0])
+                        let contactAvatarUrl = defaultProfilePicture;
+
+                        wClient.getProfilePicUrl(c.values[0])
+                        .then(contactAvatar => {
+                            contactAvatarUrl = contactAvatar
+                        })
+                        .catch(() => {
+                            contactAvatarUrl = defaultProfilePicture
+                        })
+                        
+                        selectedContact = {
+                            name: contact.name,
+                            id: c.values[0]
+                        }
+
+                        const nEmbed = new Discord.EmbedBuilder()
+                        .setTitle("Contato selecionado")
+                        .setDescription(`Nome: ${contact.name}`)
+                        .setThumbnail(contactAvatarUrl)
+
+                        const confirm = new Discord.ButtonBuilder()
+                        .setCustomId("confirm")
+                        .setLabel("CONFIRMAR")
+                        .setStyle(Discord.ButtonStyle.Success)
+
+                        const cancelcontacat = new Discord.ButtonBuilder()
+                        .setCustomId("cancelcontact")
+                        .setLabel("CANCELAR")
+                        .setStyle(Discord.ButtonStyle.Danger)
+
+                        const finalRow = new Discord.ActionRowBuilder()
+                        .setComponents(confirm, cancelcontacat)
+                        
+                        msg.edit({ embeds: [nEmbed], components: [finalRow] })
+                    }else if(c.customId == "confirm"){
+                        
+                        let contactAvatarUrl = defaultProfilePicture;
+                        
+                        wClient.getProfilePicUrl(selectedContact.id)
+                        .then(contactAvatar => {
+                            contactAvatarUrl = contactAvatar
+                        })
+                        .catch(() => {
+                            contactAvatarUrl = defaultProfilePicture
+                        })
+
+                        const finalEmbed = new Discord.EmbedBuilder()
+                        .setTitle('Canal adicionado!')
+                        .setDescription(`Contato:\n> ${selectedContact.name}\n\nNúmero:\n> ${selectedContact.id.replace("@c.us","")}`)
+                        .setColor(config.embedColor)
+                        .setThumbnail(contactAvatarUrl)
+
+                        message.channel.edit({
+                            name: `${selectedContact.name}`
+                        })
+                
+                        channels.pv[selectedContact.id] = message.channel.id
+
+                        msg.edit({ embeds: [finalEmbed], components: [] })
+                    }else if(c.customId == "cancelcontact"){
+                        msg.edit({ embeds: [embed], components: [buttonsRow, selectMenuRow]})
+                    }else if(c.customId == "cancel"){
+                        msg.delete().catch(err => {})
+                    }
+                })
+                collector.on('end', c => {
+                    
+                    let isContactSelected = false
+                    c.forEach(i => {
+                        if(i.isStringSelectMenu()) isContactSelected = true
+                    })
+                    
+                    if(!isContactSelected){
+                        const finalEmbed = new Discord.EmbedBuilder()
+                        .setTitle("Nenhum contato selecionado!")
+                        .setDescription("Nenhum contato foi selecionado, a escolha foi encerrada, caso queira tentar de novo, utilize novamente o comando!")
+                        .setColor("FF0000")
+
+                        msg.edit({ embeds: [finalEmbed], components: [] }).then(msg => {
+                            setTimeout(() => {
+                                msg.delete().catch(err => {})
+                            },5000)
+                        }).catch(err => {})
+                    }
+
+                })
+            })
+            .catch(err => {
+                console.log(err)
+            })
+
+        }
+
     }else if(message.content.startsWith("!clear")){
 
-        console.log("limpando")
         let parent = message.channel.parent
         let guildChannels = await message.channel.guild.channels.fetch()
         guildChannels.forEach(i => {
@@ -418,9 +618,49 @@ dClient.on('messageCreate', async (message) => {
                 i.delete()
             }
         })
+    }else if(message.content.startsWith("!teste")){
+
+        
+    }else if(message.content.startsWith("!2teste")){
+        const a = new Discord.EmbedBuilder()
+        .setTitle("Clica ai vai")
+
+        const btn = new Discord.ButtonBuilder()
+        .setCustomId("a")
+        .setLabel("label")
+        .setStyle(Discord.ButtonStyle.Primary)
+
+        const row = new Discord.ActionRowBuilder()
+        .setComponents(btn)
+
+        const sm = new Discord.StringSelectMenuBuilder()
+        .setCustomId("aa")
+        .setOptions(
+            new Discord.StringSelectMenuOptionBuilder()
+                .setLabel('Bulbasaur')
+                .setDescription('The dual-type Grass/Poison Seed Pokémon.')
+                .setValue('bulbasaur'),
+        )
+
+        const row2 = new Discord.ActionRowBuilder()
+        .setComponents(sm)
+
+        message.channel.send({ embeds: [a], components: [row, row2]}).then(msg => {
+            let col = msg.createMessageComponentCollector({ time: 10000 })
+            col.on('end', s => {
+                let so = 0;
+
+                s.forEach(i => {
+                    console.log(i.isStringSelectMenu())
+                    if(i.isStringSelectMenu()){
+                        return
+                    }
+                })
+            })
+        })
     }
 
-    if(answeringMessage) return
+    if(answeringMessage || message.content.startsWith("!teste") || message.content.startsWith("!2teste")) return
 
     const embed = new Discord.EmbedBuilder()
     .setTitle(`${wClient.info.pushname} (Você)`)
@@ -450,7 +690,6 @@ dClient.on('interactionCreate',async(interaction) => {
     if(interaction.customId == 'ans'){
 
         let msgData = messages[interaction.message.id]
-        console.log(msgData)
 
         let chatId = await getPVChannelByChat(msgData.chat.id._serialized)
         if(!chatId){
@@ -528,7 +767,7 @@ dClient.on('interactionCreate',async(interaction) => {
                         wClient.sendMessage(msgData.sender, ans, { quotedMessageId: msgData.id })
                         answeringMessage = false
 
-                        m.delete()
+                        msg.delete().catch(e => {})
                     })
                 })
 
@@ -593,6 +832,7 @@ dClient.on('error', error => {
         function(err) {if(err) console.log(err)}
     )
     console.log(`Houve um erro, tudo foi salvo.\nErro: ${error.name}\n\n${error.message}`)
+    console.log(error)
 })
 
 dClient.login(process.env.TOKEN)
