@@ -637,7 +637,7 @@ dClient.on('interactionCreate',async(interaction) => {
 
         let chatId = await getPVChannelByChat(msgData.chat.id._serialized)
         if(!chatId){
-            chatId = await getGroupChannel(msgData.chat.id._serialized)
+            chatId = await getGroupChannelByChat(msgData.chat.id._serialized)
             if(!chatId) {
                 console.log("Não encontrado!")
                 return
@@ -649,13 +649,13 @@ dClient.on('interactionCreate',async(interaction) => {
                 answeringMessage = true
 
                 const embed = new Discord.EmbedBuilder()
-                .setTitle(`Respondendo a ${contact.name} • ${chat.name}`)
+                .setTitle(`Respondendo a ${msgData.contact} • ${msgData.chat.name}`)
                 .setDescription(`> ${msgData.message}`)
                 .setColor(config.embedColor)
 
                 interaction.channel.send({ embeds: [embed] }).then(msg => {
                     const msgFilter = i => i.author.id == interaction.user.id && i.content
-                    let collector = interaction.channel.createMessageCollector({ msgFilter, time: 60000 })
+                    let collector = interaction.channel.createMessageCollector({ msgFilter, max: 1 })
                     collector.on('collect', async c => {
 
                         if(!c.content) return
