@@ -83,6 +83,9 @@ wClient.on('message', async(message) => {
             groupChannel.send({ embeds: [embed], components: [row] }).then(msg => {
                 messages[msg.id] = {
                     chat: chat,
+                    chatId: chat.id._serialized,
+                    message: message.body ? message.body : "*Mensagem sem texto*",
+                    contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
                     id: message.id._serialized
                 }
             })
@@ -113,6 +116,9 @@ wClient.on('message', async(message) => {
                 c.send({ embeds: [embed], components: [row] }).then(msg => {
                     messages[msg.id] = {
                         chat: chat,
+                        chatId: chat.id._serialized,
+                        message: message.body ? message.body : "*Mensagem sem texto*",
+                        contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
                         id: message.id._serialized
                     }
                 })
@@ -392,28 +398,6 @@ dClient.on('messageCreate', async (message) => {
 
         return
     }else if(message.content.startsWith('!add')){
-        // let msgContentArr = message.content.split(' ')
-        
-        // if(msgContentArr.length < 3) return message.channel.send('!add tipo(pv/groups) numero')
-
-        // let type = msgContentArr[1]
-        // let id = msgContentArr[2]
-        
-        // let ctt = await wClient.getContactById(`55${id}@c.us`)
-
-        // message.channel.edit({
-        //     name: `${ctt.name}`
-        // })
-
-        // channels[type][`55${id}@c.us`] = message.channel.id
-
-        // const embed = new Discord.EmbedBuilder()
-        // .setTitle('Canal adicionado!')
-        // .setDescription(`Contato:\n> ${ctt.name}\n\nNúmero:\n> ${id}`)
-        // .setColor(config.embedColor)
-
-        // message.delete().catch(err => {})
-        // return message.channel.send({ embeds: [embed] }).catch(err => {})
 
         let _contacts = await wClient.getContacts()
         let contacts = []
@@ -618,46 +602,6 @@ dClient.on('messageCreate', async (message) => {
                 i.delete()
             }
         })
-    }else if(message.content.startsWith("!teste")){
-
-        
-    }else if(message.content.startsWith("!2teste")){
-        const a = new Discord.EmbedBuilder()
-        .setTitle("Clica ai vai")
-
-        const btn = new Discord.ButtonBuilder()
-        .setCustomId("a")
-        .setLabel("label")
-        .setStyle(Discord.ButtonStyle.Primary)
-
-        const row = new Discord.ActionRowBuilder()
-        .setComponents(btn)
-
-        const sm = new Discord.StringSelectMenuBuilder()
-        .setCustomId("aa")
-        .setOptions(
-            new Discord.StringSelectMenuOptionBuilder()
-                .setLabel('Bulbasaur')
-                .setDescription('The dual-type Grass/Poison Seed Pokémon.')
-                .setValue('bulbasaur'),
-        )
-
-        const row2 = new Discord.ActionRowBuilder()
-        .setComponents(sm)
-
-        message.channel.send({ embeds: [a], components: [row, row2]}).then(msg => {
-            let col = msg.createMessageComponentCollector({ time: 10000 })
-            col.on('end', s => {
-                let so = 0;
-
-                s.forEach(i => {
-                    console.log(i.isStringSelectMenu())
-                    if(i.isStringSelectMenu()){
-                        return
-                    }
-                })
-            })
-        })
     }
 
     if(answeringMessage || message.content.startsWith("!teste") || message.content.startsWith("!2teste")) return
@@ -681,7 +625,7 @@ dClient.on('messageCreate', async (message) => {
         if(message.content.startsWith('!add')) {
             return
         }
-        wClient.sendMessage(`${channel}`, message.content)
+        wClient.sendMessage(channel, message.content)
     }
 })
 
@@ -699,35 +643,38 @@ dClient.on('interactionCreate',async(interaction) => {
                 return
             }
 
-            let chatMessages = await msgData.chat.fetchMessages()
-            let ansMsg = chatMessages.find(i => i.id == msgData.id)
 
-            if(ansMsg){
+            if(msgData){
 
-                let sentContact = ansMsg.getContact()
+                answeringMessage = true
 
                 const embed = new Discord.EmbedBuilder()
-                .setTitle(`Respondendo a ${contact.name} | ${chat.name}`)
-                .setDescription(`> ${ansMsg.body}`)
+                .setTitle(`Respondendo a ${contact.name} • ${chat.name}`)
+                .setDescription(`> ${msgData.message}`)
                 .setColor(config.embedColor)
 
                 interaction.channel.send({ embeds: [embed] }).then(msg => {
                     const msgFilter = i => i.author.id == interaction.user.id && i.content
                     let collector = interaction.channel.createMessageCollector({ msgFilter, time: 60000 })
-                    collector.on('collect', c => {
+                    collector.on('collect', async c => {
 
                         if(!c.content) return
 
                         let ans = c.content
 
-                        ansMsg.reply(ans)
+                        const embed = new Discord.EmbedBuilder()
+                        .setTitle(`${wClient.info.pushname} (Você)`)
+                        .setDescription(`> **${msgData.contact}**\n> ${msgData.message}\n\n${ans}`)
+                        .setColor(config.embedColor)
+                        .setThumbnail(clientProfilePicture ? clientProfilePicture : defaultProfilePicture)
 
-                        embed.setTitle('Resposta enviada!')
-                        embed.setDescription(`Você respondeu a ${sentContact.name} em ${chat.name}\n\n**Mensagem:**\n>${ansMsg.body}\n\n**Resposta:**\n>${ans}`)
+                        await c.delete()
+                        await interaction.channel.send({ embeds: [embed]})
 
-                        msg.edit({ embeds: [embed] }).then(m => {
-                            m.delete().catch(e => {})
-                        })
+                        wClient.sendMessage(msgData.chatId, ans, { quotedMessageId: msgData.id })
+                        answeringMessage = false
+
+                        msg.delete().catch(e => {})
                     })
                 })
             }
