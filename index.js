@@ -50,11 +50,12 @@ wClient.on('message', async(message) => {
     .then(pic => {
         contactPicture = pic
     })
-    .catch(() => {
-        contactPicture = defaultProfilePicture
+    .catch((err) => {
+        if(err) contactPicture = defaultProfilePicture
     })
 
     if(chat.isMuted || message.isStatus) return
+    let attachment = undefined;
 
     if(chat.isGroup){
 
@@ -65,11 +66,29 @@ wClient.on('message', async(message) => {
 
         if(groupChannel){
 
+
             const embed = new Discord.EmbedBuilder()
-            .setTitle(contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number))
-            .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
+            .setTitle(contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number))
             .setColor(config.embedColor)
-            .setThumbnail(contactPicture ? contactPicture : defaultProfilePicture)
+            .setThumbnail(contactPicture)
+
+            if(message.body || message.caption){
+                embed.setDescription(message.body ? message.body : message.caption)
+            }
+            if(message.media){
+                let media = await message.downloadMedia()
+
+                fs.writeFileSync(
+                    `./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`,
+                    media.data,
+                    function(err) { if(err) console.log(err) }
+                )
+
+                attachment = new Discord.AttachmentBuilder()
+                .setFile(`./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`)
+
+                embed.setImage(`attachment://media/${message.id._serialized}.${media.mimetype.replace("image/","")}`)
+            }
 
             const btn = new Discord.ButtonBuilder()
             .setCustomId(`ans`)
@@ -80,12 +99,12 @@ wClient.on('message', async(message) => {
             const row = new Discord.ActionRowBuilder()
             .setComponents(btn)
             
-            groupChannel.send({ embeds: [embed], components: [row] }).then(msg => {
+            groupChannel.send({ embeds: [embed], components: [row], files: attachment ? [attachment]: [] }).then(msg => {
                 messages[msg.id] = {
                     chat: chat,
                     chatId: chat.id._serialized,
                     message: message.body ? message.body : "*Mensagem sem texto*",
-                    contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
+                    contact: contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number),
                     id: message.id._serialized
                 }
             })
@@ -96,13 +115,30 @@ wClient.on('message', async(message) => {
                 type: Discord.ChannelType.GuildText,
                 parent: discordConfig.groupParent,
                 description: chat.name
-            }).then(c => {
+            }).then( async c => {
 
                 const embed = new Discord.EmbedBuilder()
-                .setTitle(contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number))
-                .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
+                .setTitle(contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number))
                 .setColor(config.embedColor)
-                .setThumbnail(contactPicture ? contactPicture : defaultProfilePicture)
+                .setThumbnail(contactPicture)
+
+                if(message.body || message.caption){
+                    embed.setDescription(message.body ? message.body : message.caption)
+                }
+                if(message.media){
+                    let media = await message.downloadMedia()
+    
+                    fs.writeFileSync(
+                        `./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`,
+                        media.data,
+                        function(err) { if(err) console.log(err) }
+                    )
+    
+                    attachment = new Discord.AttachmentBuilder()
+                    .setFile(`./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`)
+    
+                    embed.setImage(`attachment://media/${message.id._serialized}`)
+                }
 
                 const btn = new Discord.ButtonBuilder()
                 .setCustomId(`ans`)
@@ -113,12 +149,12 @@ wClient.on('message', async(message) => {
                 const row = new Discord.ActionRowBuilder()
                 .setComponents(btn)
 
-                c.send({ embeds: [embed], components: [row] }).then(msg => {
+                c.send({ embeds: [embed], components: [row], files: attachment ? [attachment]: [] }).then(msg => {
                     messages[msg.id] = {
                         chat: chat,
                         chatId: chat.id._serialized,
                         message: message.body ? message.body : "*Mensagem sem texto*",
-                        contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
+                        contact: contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number),
                         id: message.id._serialized
                     }
                 })
@@ -137,10 +173,27 @@ wClient.on('message', async(message) => {
         if(cttChannel){
 
             const embed = new Discord.EmbedBuilder()
-            .setTitle(contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number))
-            .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
+            .setTitle(contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number))
             .setColor(config.embedColor)
-            .setThumbnail(contactPicture ? contactPicture : "")
+            .setThumbnail(contactPicture)
+
+            if(message.body || message.caption){
+                embed.setDescription(message.body ? message.body : message.caption)
+            }
+            if(message.media){
+                let media = await message.downloadMedia()
+
+                fs.writeFileSync(
+                    `./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`,
+                    media.data,
+                    function(err) { if(err) console.log(err) }
+                )
+
+                attachment = new Discord.AttachmentBuilder()
+                .setFile(`./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`)
+
+                embed.setImage(`attachment://media/${message.id._serialized}`)
+            }
 
             const btn = new Discord.ButtonBuilder()
             .setCustomId(`ans`)
@@ -151,12 +204,12 @@ wClient.on('message', async(message) => {
             const row = new Discord.ActionRowBuilder()
             .setComponents(btn)
 
-            await cttChannel.send({ embeds: [embed], components: [row] }).then(msg => {
+            await cttChannel.send({ embeds: [embed], components: [row], files: attachment ? [attachment]: [] }).then(msg => {
                 messages[msg.id] = {
                     chat: chat,
                     message: message.body ? message.body : "*Mensagem sem texto*",
                     sender: message.from,
-                    contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
+                    contact: contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number),
                     id: message.id._serialized
                 }
             })
@@ -168,13 +221,32 @@ wClient.on('message', async(message) => {
                 type: Discord.ChannelType.GuildText,
                 parent: discordConfig.pvParent,
                 description: contact.name ? contact.name : `${contact.number} - ${contact.pushname}`
-            }).then(c => {
+            }).then(async c => {
 
                 const embed = new Discord.EmbedBuilder()
-                .setTitle(contact.name ? contact.name : contact.pushname)
-                .setDescription(message.body ? message.body : (message.caption ? message.caption : "```A mensagem não possui texto, aguarde atualizações```"))
+                .setTitle(contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number))
                 .setColor(config.embedColor)
-                .setThumbnail(contactPicture ? contactPicture : defaultProfilePicture)
+                .setThumbnail(contactPicture)
+
+                if(message.body || message.caption){
+                    embed.setDescription(message.body ? message.body : message.caption)
+                }
+                if(message.media){
+                    let media = await message.downloadMedia()
+    
+                    if(!media.mimetype.startsWith("image")) return
+
+                    fs.writeFileSync(
+                        `./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`,
+                        media.data,
+                        function(err) { if(err) console.log(err) }
+                    )
+    
+                    attachment = new Discord.AttachmentBuilder()
+                    .setFile(`./media/${message.id._serialized}.${media.mimetype.replace("image/","")}`)
+    
+                    embed.setImage(`attachment://media/${message.id._serialized}`)
+                }
 
                 const btn = new Discord.ButtonBuilder()
                 .setCustomId(`ans`)
@@ -185,12 +257,12 @@ wClient.on('message', async(message) => {
                 const row = new Discord.ActionRowBuilder()
                 .setComponents(btn)
 
-                c.send({ embeds: [embed], components: [row] }).then(msg => {
+                c.send({ embeds: [embed], components: [row], files: attachment ? [attachment]: [] }).then(msg => {
                     messages[msg.id] = {
                         chat: chat,
                         message: message.body ? message.body : "*Mensagem sem texto*",
                         sender: message.from,
-                        contact: contact.name ? contact.name : (contact.pushname ? contact.pushname : contact.number),
+                        contact: contact.name ? contact.name : (contact.pushname ? `~${contact.pushname}` : contact.number),
                         id: message.id._serialized
                     }
                 })
@@ -351,7 +423,7 @@ wClient.on('ready',async () => {
 
 dClient.on('messageCreate', async (message) => {
 
-    if(!message.content) return
+    if(message.author.bot) return
 
     if(message.content.startsWith('!set')){
 
@@ -593,6 +665,7 @@ dClient.on('messageCreate', async (message) => {
 
         }
 
+    return
     }else if(message.content.startsWith("!clear")){
 
         let parent = message.channel.parent
@@ -602,30 +675,129 @@ dClient.on('messageCreate', async (message) => {
                 i.delete()
             }
         })
+    }else if(message.content.startsWith("!teste")){
+
+        const attachment = new Discord.AttachmentBuilder()
+        .setFile("profile.png")
+
+        const embed = new Discord.EmbedBuilder()
+        .setImage("attachment://profile.png")
+
+        message.channel.send({ embeds: [embed], files: [attachment]})
     }
 
-    if(answeringMessage || message.content.startsWith("!teste") || message.content.startsWith("!2teste")) return
+    if(answeringMessage || message.content.startsWith("!teste")) return
 
     const embed = new Discord.EmbedBuilder()
     .setTitle(`${wClient.info.pushname} (Você)`)
-    .setDescription(message.content)
     .setColor(config.embedColor)
     .setThumbnail(clientProfilePicture ? clientProfilePicture : defaultProfilePicture)
 
-    await message.delete()
-    await message.channel.send({ embeds: [embed] })
+    if(message.content){
+        embed.setDescription(message.content)
+    }
+    if(message.attachments){
+        message.attachments.forEach(i => {
+            if(i.contentType.startsWith("image")){
+                embed.setImage(i.url)
+            }
+        })
+    }
+
+    const btn = new Discord.ButtonBuilder()
+    .setCustomId(`ans`)
+    .setLabel("Responder")
+    .setEmoji('994087537230479380')
+    .setStyle(Discord.ButtonStyle.Primary)
+
+    const row = new Discord.ActionRowBuilder()
+    .setComponents(btn)
+
+
+    await message.delete().catch(err => {})
+    let msg = await message.channel.send({ embeds: [embed], components: [row] })
 
     let channel = await getPVChannel(message.channel.id)
     if(!channel) {
         let channel = await getGroupChannel(message.channel.id)
+        
         if(channel){
-            wClient.sendMessage(channel, message.content)
+            if(message.attachments.size > 0){
+                message.attachments.forEach(async i => {
+                    let media = await wweb.MessageMedia.fromUrl(i.url)
+                    
+                    if(message.content){
+                        wClient.sendMessage(channel, media, {caption: message.content}).then(m => {
+                            messages[msg.id] = {
+                                chat: channel,
+                                message: message.content ? message.content : "*Mensagem sem texto*",
+                                contact: wClient.info.pushname,
+                                id: m.id._serialized
+                            }
+                        })
+                    }else{
+                        wClient.sendMessage(channel, media).then(m => {
+                            messages[msg.id] = {
+                                chat: channel,
+                                message: message.content ? message.content : "*Mensagem sem texto*",
+                                contact: wClient.info.pushname,
+                                id: m.id._serialized
+                            }
+                        })
+                    }
+                })
+            }else{
+                wClient.sendMessage(channel, message.content).then(m => {
+                    messages[msg.id] = {
+                        chat: channel,
+                        message: message.content ? message.content : "*Mensagem sem texto*",
+                        contact: wClient.info.pushname,
+                        id: m.id._serialized
+                    }
+                })
+            }
+
         }
+
     }else{
-        if(message.content.startsWith('!add')) {
-            return
+
+        if(message.attachments.size > 0){
+            message.attachments.forEach(async i => {
+                let media = await wweb.MessageMedia.fromUrl(i.url)
+
+                if(message.content){
+                    wClient.sendMessage(channel, media, {caption: message.content}).then(m => {
+                        messages[msg.id] = {
+                            chat: channel,
+                            message: message.content ? message.content : "*Mensagem sem texto*",
+                            sender: channel,
+                            contact: wClient.info.pushname,
+                            id: m.id._serialized
+                        }
+                    })
+                }else{
+                    wClient.sendMessage(channel, media).then(m => {
+                        messages[msg.id] = {
+                            chat: channel,
+                            message: message.content ? message.content : "*Mensagem sem texto*",
+                            sender: channel,
+                            contact: wClient.info.pushname,
+                            id: m.id._serialized
+                        }
+                    })
+                }
+            })
+        }else{
+            wClient.sendMessage(channel, message.content).then(m => {
+                messages[msg.id] = {
+                    chat: channel,
+                    message: message.content ? message.content : "*Mensagem sem texto*",
+                    sender: channel,
+                    contact: wClient.info.pushname,
+                    id: m.id._serialized
+                }
+            })
         }
-        wClient.sendMessage(channel, message.content)
     }
 })
 
