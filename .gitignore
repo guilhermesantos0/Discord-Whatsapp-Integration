@@ -5,3 +5,7 @@ package-lock.json
 .env
 src
 discordConfig.json
+*.jpeg
+*.png
+*.jpg
+*.webp
